@@ -100,11 +100,6 @@ fun VideoPage(
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
 
-    // Apply playback speed to player whenever it changes
-    LaunchedEffect(player, playbackSpeed) {
-        player?.setPlaybackSpeed(playbackSpeed)
-    }
-
     // Reset zoom when leaving page
     LaunchedEffect(isCurrentPage) {
         if (!isCurrentPage) {
@@ -133,6 +128,11 @@ fun VideoPage(
     val player = pageState?.player
     val failure = pageState?.failure
     val isFirstFrameRendered = pageState?.firstFrameRendered == true
+
+    // Apply playback speed to player whenever it changes
+    LaunchedEffect(player, playbackSpeed) {
+        player?.setPlaybackSpeed(playbackSpeed)
+    }
     // This page's own video size, then the preview's intrinsic size, then unknown (fill).
     val isLandscape = pageState?.videoSize
         ?.takeIf { it.width > 0 && it.height > 0 }
