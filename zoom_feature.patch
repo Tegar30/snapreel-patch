@@ -1,0 +1,78 @@
+--- a/app/src/main/java/com/snapreel/app/ui/viewer/VideoPage.kt
++++ b/app/src/main/java/com/snapreel/app/ui/viewer/VideoPage.kt
+@@ -8,3 +8,5 @@
+ import androidx.compose.foundation.background
++import androidx.compose.foundation.gestures.calculatePan
++import androidx.compose.foundation.gestures.calculateZoom
+ import androidx.compose.foundation.gestures.detectTapGestures
+@@ -23,2 +25,3 @@
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.input.pointer.pointerInput
+@@ -85,3 +88,17 @@
+     val currentOnDoubleTapLeft by rememberUpdatedState(onDoubleTapLeft)
+     val currentOnDoubleTapRight by rememberUpdatedState(onDoubleTapRight)
+ 
++    // Pinch-to-zoom state
++    var scale by remember { mutableFloatStateOf(1f) }
++    var offsetX by remember { mutableFloatStateOf(0f) }
++    var offsetY by remember { mutableFloatStateOf(0f) }
++
++    // Reset zoom when leaving page
++    LaunchedEffect(isCurrentPage) {
++        if (!isCurrentPage) {
++            scale = 1f
++            offsetX = 0f
++            offsetY = 0f
++        }
++    }
++
+@@ -168,2 +185,10 @@
+                     onDoubleTap = { offset ->
++                        if (scale > 1.05f) {
++                            // If zoomed in, double-tap resets zoom back to 1x
++                            scale = 1f
++                            offsetX = 0f
++                            offsetY = 0f
++                        } else {
+                         val tapX = offset.x
+                         val screenWidthPx = screenWidth * density
+                         if (tapX < screenWidthPx / 2) {
+@@ -174,2 +199,23 @@
+                         }
++                        }
+                     }
+                 )
+             }
++            // Pinch-to-zoom gesture (separate pointerInput so they don't conflict)
++            .pointerInput(Unit) {
++                awaitPointerEventScope {
++                    while (true) {
++                        val event = awaitPointerEvent()
++                        // Only process multi-finger gestures for zoom/pan
++                        if (event.changes.size > 1) {
++                            val zoom = event.calculateZoom()
++                            val pan = event.calculatePan()
++                            scale = (scale * zoom).coerceIn(1f, 5f)
++                            if (scale > 1f) {
++                                offsetX += pan.x
++                                offsetY += pan.y
++                            } else {
++                                offsetX = 0f
++                                offsetY = 0f
++                            }
++                            event.changes.forEach { it.consume() }
++                        }
++                    }
++                }
++            }
+--- a/app/src/main/java/com/snapreel/app/ui/viewer/landscape/LandscapeVideoViewerScreen.kt
++++ b/app/src/main/java/com/snapreel/app/ui/viewer/landscape/LandscapeVideoViewerScreen.kt
+@@ -14,3 +14,6 @@
+ import androidx.compose.foundation.background
++import androidx.compose.foundation.gestures.calculatePan
++import androidx.compose.foundation.gestures.calculateZoom
+ import androidx.compose.foundation.gestures.detectTapGestures
+@@ -32,2 +35,3 @@
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.graphicsLayer
