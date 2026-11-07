@@ -56,9 +56,8 @@ android {
         applicationId = "com.snapreel.app"
         minSdk = 26
         targetSdk = 36
-        // 1.3.0 is the first release signed with the dedicated release key.
-        versionCode = 14
-        versionName = "1.3.0"
+        versionCode = 15
+        versionName = "1.3.1"
     }
 
     buildTypes {
