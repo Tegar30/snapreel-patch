@@ -246,9 +246,9 @@ private fun LandscapePagerContent(
         }
     }
 
-    // Playback time tracking
-    LaunchedEffect(pagerState.settledPage, isDraggingSlider) {
-        if (!isDraggingSlider) {
+    // Playback time tracking only while controls are visible
+    LaunchedEffect(pagerState.settledPage, uiState.showControls, isDraggingSlider) {
+        if (uiState.showControls && !isDraggingSlider) {
             while (true) {
                 currentTime.longValue = viewModel.pool.positionMs()
                 totalTime.longValue = viewModel.pool.durationMs()

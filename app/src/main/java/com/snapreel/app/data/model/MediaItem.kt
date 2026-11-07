@@ -1,7 +1,9 @@
 package com.snapreel.app.data.model
 
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class MediaItem(
     val uri: Uri,
     val name: String,
@@ -35,6 +37,7 @@ data class MediaItem(
     }
 }
 
+@Immutable
 data class FolderInfo(
     val uri: Uri,
     val displayName: String,
