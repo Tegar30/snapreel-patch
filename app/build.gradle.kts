@@ -56,14 +56,14 @@ android {
         applicationId = "com.snapreel.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.3.1"
+        versionCode = 16
+        versionName = "1.3.1.1"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
