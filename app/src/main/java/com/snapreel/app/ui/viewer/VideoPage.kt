@@ -72,8 +72,8 @@ fun VideoPage(
     showFileName: Boolean,
     aspectRatioMode: AspectRatioMode = AspectRatioMode.SMART,
     onTap: () -> Unit,
-    onDoubleTapLeft: () -> Unit,
-    onDoubleTapRight: () -> Unit,
+    onDoubleTapLeft: () -> Unit = {},
+    onDoubleTapRight: () -> Unit = {},
     onMuteToggle: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSliderDragStart: () -> Unit,
@@ -85,13 +85,14 @@ fun VideoPage(
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp
     val scope = rememberCoroutineScope()
+    val view = androidx.compose.ui.platform.LocalView.current
 
     // rememberUpdatedState ensures the gesture detector always calls the
-    // LATEST version of these callbacks, even though pointerInput(Unit)
+    // LATEST version of these callbacks, even though pointerInput
     // only creates the detector once.
     val currentOnTap by rememberUpdatedState(onTap)
-    val currentOnDoubleTapLeft by rememberUpdatedState(onDoubleTapLeft)
-    val currentOnDoubleTapRight by rememberUpdatedState(onDoubleTapRight)
+    val currentOnFavoriteToggle by rememberUpdatedState(onFavoriteToggle)
+    val currentIsFavorite by rememberUpdatedState(isFavorite)
 
     // Pinch-to-zoom & Pan state with smooth animation support
     val scaleAnim = remember { Animatable(1f) }
@@ -99,6 +100,8 @@ fun VideoPage(
     val offsetYAnim = remember { Animatable(0f) }
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
+    var isSpeedingUp by remember { mutableStateOf(false) }
+    var showHeartAnim by remember { mutableStateOf(false) }
 
     // Reset zoom when leaving page
     LaunchedEffect(isCurrentPage) {
@@ -114,8 +117,6 @@ fun VideoPage(
         onZoomChanged(scaleAnim.value > 1.05f)
     }
 
-    val showSeekLeft = remember { mutableStateOf(false) }
-    val showSeekRight = remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
     var isDraggingSlider by remember { mutableStateOf(false) }
     val currentTime = remember { mutableLongStateOf(0L) }
@@ -185,8 +186,33 @@ fun VideoPage(
             .testTag(VideoPageTags.ROOT)
             .semantics { videoFill = shouldZoom }
             .onSizeChanged { containerSize = it }
-            .pointerInput(Unit) {
+            .pointerInput(containerSize) {
                 detectTapGestures(
+                    onPress = { offset ->
+                        val screenWidthPx = containerSize.width.takeIf { it > 0 }?.toFloat() ?: (screenWidth * density)
+                        val containerHeightPx = containerSize.height.takeIf { it > 0 }?.toFloat() ?: Float.MAX_VALUE
+                        val bottomControlsHeightPx = 120 * density
+                        val isEdge = (offset.x < screenWidthPx * 0.25f || offset.x > screenWidthPx * 0.75f) &&
+                            offset.y < (containerHeightPx - bottomControlsHeightPx)
+                        if (isEdge && scaleAnim.value <= 1.05f) {
+                            try {
+                                val released = kotlinx.coroutines.withTimeoutOrNull(250L) {
+                                    tryAwaitRelease()
+                                }
+                                if (released == null) {
+                                    isSpeedingUp = true
+                                    playbackSpeed = 2f
+                                    view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                    tryAwaitRelease()
+                                }
+                            } finally {
+                                if (isSpeedingUp) {
+                                    isSpeedingUp = false
+                                    playbackSpeed = 1f
+                                }
+                            }
+                        }
+                    },
                     onTap = {
                         // Uses rememberUpdatedState — always fresh
                         currentOnTap()
@@ -200,15 +226,11 @@ fun VideoPage(
                                 launch { offsetYAnim.animateTo(0f, tween(200, easing = FastOutSlowInEasing)) }
                             }
                         } else {
-                            val tapX = offset.x
-                            val screenWidthPx = screenWidth * density
-                            if (tapX < screenWidthPx / 2) {
-                                showSeekLeft.value = true
-                                currentOnDoubleTapLeft()
-                            } else {
-                                showSeekRight.value = true
-                                currentOnDoubleTapRight()
+                            if (!currentIsFavorite) {
+                                currentOnFavoriteToggle()
                             }
+                            showHeartAnim = true
+                            view.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
                         }
                     }
                 )
@@ -360,55 +382,46 @@ fun VideoPage(
             }
         }
 
-        // Double-tap seek left indicator
-        LaunchedEffect(showSeekLeft.value) {
-            if (showSeekLeft.value) {
-                delay(500)
-                showSeekLeft.value = false
-            }
-        }
-        AnimatedVisibility(
-            visible = showSeekLeft.value,
-            enter = fadeIn(tween(100)),
-            exit = fadeOut(tween(300)),
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 40.dp)
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Filled.FastRewind,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(36.dp)
-                )
-                Text("10s", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        // Double-tap heart animation (TikTok / Instagram style)
+        PoppingHeart(
+            visible = showHeartAnim,
+            onAnimationEnd = { showHeartAnim = false },
+            modifier = Modifier.align(Alignment.Center)
+        )
 
-        // Double-tap seek right indicator
-        LaunchedEffect(showSeekRight.value) {
-            if (showSeekRight.value) {
-                delay(500)
-                showSeekRight.value = false
-            }
-        }
+        // 2X Speed indicator pill (TikTok style)
         AnimatedVisibility(
-            visible = showSeekRight.value,
-            enter = fadeIn(tween(100)),
-            exit = fadeOut(tween(300)),
+            visible = isSpeedingUp,
+            enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.85f),
+            exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.85f),
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 40.dp)
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 18.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Filled.FastForward,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(36.dp)
-                )
-                Text("10s", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.Black.copy(alpha = 0.65f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.FastForward,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "2X Speed",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
 

@@ -49,6 +49,7 @@ interface PlayerPool {
     fun setLoop(loop: Boolean)
     fun positionMs(): Long
     fun durationMs(): Long
+    fun setPlaybackSpeed(speed: Float) {}
 
     /** Clears the page's failure and prepares its player again (playing it if it is current). */
     fun retry(uri: Uri)
@@ -365,6 +366,11 @@ class ReelPlayerPool(
     override fun positionMs(): Long = if (released) 0L else currentPlayer()?.currentPosition?.coerceAtLeast(0) ?: 0L
 
     override fun durationMs(): Long = if (released) 0L else currentPlayer()?.duration?.coerceAtLeast(0) ?: 0L
+
+    override fun setPlaybackSpeed(speed: Float) {
+        if (released) return
+        currentPlayer()?.setPlaybackSpeed(speed)
+    }
 
     override fun retry(uri: Uri) {
         if (released) return
