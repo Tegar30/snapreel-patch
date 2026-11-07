@@ -21,8 +21,8 @@ import com.snapreel.app.ui.viewer.landscape.LandscapeVideoViewerScreen
 
 object Routes {
     const val HOME = "home"
-    const val VIEWER = "viewer/{folderUri}/{startIndex}?fresh={fresh}"
-    const val LANDSCAPE_VIEWER = "landscape_viewer/{folderUri}/{startIndex}?fresh={fresh}"
+    const val VIEWER = "viewer/{folderUri}/{startIndex}?fresh={fresh}&favoritesOnly={favoritesOnly}"
+    const val LANDSCAPE_VIEWER = "landscape_viewer/{folderUri}/{startIndex}?fresh={fresh}&favoritesOnly={favoritesOnly}"
     const val GRID = "grid/{folderUri}"
     const val SETTINGS = "settings"
 
@@ -30,10 +30,10 @@ object Routes {
      * [fresh] = true rescans the folder and resolves the start item by its saved URI (Home's play
      * button). false reads the snapshot the grid just scanned (grid taps).
      */
-    fun viewer(folderUri: String, startIndex: Int = 0, fresh: Boolean = false) =
-        "viewer/${Uri.encode(folderUri)}/$startIndex?fresh=$fresh"
-    fun landscapeViewer(folderUri: String, startIndex: Int = 0, fresh: Boolean = false) =
-        "landscape_viewer/${Uri.encode(folderUri)}/$startIndex?fresh=$fresh"
+    fun viewer(folderUri: String, startIndex: Int = 0, fresh: Boolean = false, favoritesOnly: Boolean = false) =
+        "viewer/${Uri.encode(folderUri)}/$startIndex?fresh=$fresh&favoritesOnly=$favoritesOnly"
+    fun landscapeViewer(folderUri: String, startIndex: Int = 0, fresh: Boolean = false, favoritesOnly: Boolean = false) =
+        "landscape_viewer/${Uri.encode(folderUri)}/$startIndex?fresh=$fresh&favoritesOnly=$favoritesOnly"
     fun grid(folderUri: String) = "grid/${Uri.encode(folderUri)}"
 }
 
@@ -51,15 +51,29 @@ interface SnapReelScreens {
         folderUri: Uri,
         returnedIndex: Int?,
         onBack: () -> Unit,
-        onMediaClick: (Int, Boolean) -> Unit,
+        onMediaClick: (Int, Boolean, Boolean) -> Unit,
         onOpenOtherFolder: (Uri) -> Unit,
     )
 
     @Composable
-    fun Viewer(folderUri: Uri, startIndex: Int, fresh: Boolean, onBack: (Int) -> Unit, onOpenOtherFolder: (Uri) -> Unit)
+    fun Viewer(
+        folderUri: Uri,
+        startIndex: Int,
+        fresh: Boolean,
+        favoritesOnly: Boolean,
+        onBack: (Int) -> Unit,
+        onOpenOtherFolder: (Uri) -> Unit
+    )
 
     @Composable
-    fun LandscapeViewer(folderUri: Uri, startIndex: Int, fresh: Boolean, onBack: (Int) -> Unit, onOpenOtherFolder: (Uri) -> Unit)
+    fun LandscapeViewer(
+        folderUri: Uri,
+        startIndex: Int,
+        fresh: Boolean,
+        favoritesOnly: Boolean,
+        onBack: (Int) -> Unit,
+        onOpenOtherFolder: (Uri) -> Unit
+    )
 
     @Composable
     fun Settings(onBack: () -> Unit)
@@ -79,7 +93,7 @@ object AppScreens : SnapReelScreens {
         folderUri: Uri,
         returnedIndex: Int?,
         onBack: () -> Unit,
-        onMediaClick: (Int, Boolean) -> Unit,
+        onMediaClick: (Int, Boolean, Boolean) -> Unit,
         onOpenOtherFolder: (Uri) -> Unit,
     ) = FolderMediaGridScreen(
         folderUri = folderUri,
@@ -90,24 +104,38 @@ object AppScreens : SnapReelScreens {
     )
 
     @Composable
-    override fun Viewer(folderUri: Uri, startIndex: Int, fresh: Boolean, onBack: (Int) -> Unit, onOpenOtherFolder: (Uri) -> Unit) =
-        ReelsViewerScreen(
-            folderUri = folderUri,
-            startIndex = startIndex,
-            fresh = fresh,
-            onBack = onBack,
-            onOpenOtherFolder = onOpenOtherFolder,
-        )
+    override fun Viewer(
+        folderUri: Uri,
+        startIndex: Int,
+        fresh: Boolean,
+        favoritesOnly: Boolean,
+        onBack: (Int) -> Unit,
+        onOpenOtherFolder: (Uri) -> Unit
+    ) = ReelsViewerScreen(
+        folderUri = folderUri,
+        startIndex = startIndex,
+        fresh = fresh,
+        favoritesOnly = favoritesOnly,
+        onBack = onBack,
+        onOpenOtherFolder = onOpenOtherFolder,
+    )
 
     @Composable
-    override fun LandscapeViewer(folderUri: Uri, startIndex: Int, fresh: Boolean, onBack: (Int) -> Unit, onOpenOtherFolder: (Uri) -> Unit) =
-        LandscapeVideoViewerScreen(
-            folderUri = folderUri,
-            startIndex = startIndex,
-            fresh = fresh,
-            onBack = onBack,
-            onOpenOtherFolder = onOpenOtherFolder,
-        )
+    override fun LandscapeViewer(
+        folderUri: Uri,
+        startIndex: Int,
+        fresh: Boolean,
+        favoritesOnly: Boolean,
+        onBack: (Int) -> Unit,
+        onOpenOtherFolder: (Uri) -> Unit
+    ) = LandscapeVideoViewerScreen(
+        folderUri = folderUri,
+        startIndex = startIndex,
+        fresh = fresh,
+        favoritesOnly = favoritesOnly,
+        onBack = onBack,
+        onOpenOtherFolder = onOpenOtherFolder,
+    )
 
     @Composable
     override fun Settings(onBack: () -> Unit) = SettingsScreen(onBack = onBack)
@@ -147,6 +175,10 @@ fun SnapReelNavGraph(
         navArgument("folderUri") { type = NavType.StringType },
         navArgument("startIndex") { type = NavType.IntType },
         navArgument("fresh") {
+            type = NavType.BoolType
+            defaultValue = false
+        },
+        navArgument("favoritesOnly") {
             type = NavType.BoolType
             defaultValue = false
         },
@@ -194,14 +226,14 @@ fun SnapReelNavGraph(
                     folderUri = folderUri,
                     returnedIndex = lastViewedIndex,
                     onBack = { navController.popFrom(entry) },
-                    onMediaClick = { index, isLandscape ->
+                    onMediaClick = { index, isLandscape, favoritesOnly ->
                         if (navController.canNavigateFrom(entry)) {
                             // Clear the returned index when moving forward
                             entry.savedStateHandle.remove<Int>(LAST_VIEWED_INDEX)
                             val route = if (isLandscape) {
-                                Routes.landscapeViewer(folderUri.toString(), index, fresh = false)
+                                Routes.landscapeViewer(folderUri.toString(), index, fresh = false, favoritesOnly = favoritesOnly)
                             } else {
-                                Routes.viewer(folderUri.toString(), index, fresh = false)
+                                Routes.viewer(folderUri.toString(), index, fresh = false, favoritesOnly = favoritesOnly)
                             }
                             navController.navigateFrom(entry, route)
                         }
@@ -215,11 +247,13 @@ fun SnapReelNavGraph(
             val folderUri = entry.folderUriArg()
             val startIndex = entry.arguments?.getInt("startIndex") ?: 0
             val fresh = entry.arguments?.getBoolean("fresh") ?: false
+            val favoritesOnly = entry.arguments?.getBoolean("favoritesOnly") ?: false
             if (folderUri != null) {
                 screens.Viewer(
                     folderUri = folderUri,
                     startIndex = startIndex,
                     fresh = fresh,
+                    favoritesOnly = favoritesOnly,
                     onBack = { currentIndex -> viewerBack(entry, currentIndex) },
                     onOpenOtherFolder = { uri -> openOtherFolder(entry, uri) }
                 )
@@ -230,11 +264,13 @@ fun SnapReelNavGraph(
             val folderUri = entry.folderUriArg()
             val startIndex = entry.arguments?.getInt("startIndex") ?: 0
             val fresh = entry.arguments?.getBoolean("fresh") ?: false
+            val favoritesOnly = entry.arguments?.getBoolean("favoritesOnly") ?: false
             if (folderUri != null) {
                 screens.LandscapeViewer(
                     folderUri = folderUri,
                     startIndex = startIndex,
                     fresh = fresh,
+                    favoritesOnly = favoritesOnly,
                     onBack = { currentIndex -> viewerBack(entry, currentIndex) },
                     onOpenOtherFolder = { uri -> openOtherFolder(entry, uri) }
                 )

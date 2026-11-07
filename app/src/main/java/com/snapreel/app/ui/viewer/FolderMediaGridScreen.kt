@@ -35,7 +35,6 @@ import com.snapreel.app.util.thumbnail.videoThumbnailRequest
 
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FolderMediaGridScreen(
     folderUri: Uri,
@@ -45,8 +44,29 @@ fun FolderMediaGridScreen(
     onOpenOtherFolder: (Uri) -> Unit = {},
     viewModel: FolderGridViewModel = hiltViewModel()
 ) {
+    FolderMediaGridScreen(
+        folderUri = folderUri,
+        returnedIndex = returnedIndex,
+        onBack = onBack,
+        onMediaClick = { index, isLandscape, _ -> onMediaClick(index, isLandscape) },
+        onOpenOtherFolder = onOpenOtherFolder,
+        viewModel = viewModel
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FolderMediaGridScreen(
+    folderUri: Uri,
+    returnedIndex: Int? = null,
+    onBack: () -> Unit,
+    onMediaClick: (Int, Boolean, Boolean) -> Unit,
+    onOpenOtherFolder: (Uri) -> Unit = {},
+    viewModel: FolderGridViewModel = hiltViewModel()
+) {
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
+    val favorites by viewModel.favorites.collectAsState()
     val gridState = rememberLazyGridState()
     val currentOnOpenOtherFolder by rememberUpdatedState(onOpenOtherFolder)
 
@@ -63,15 +83,21 @@ fun FolderMediaGridScreen(
     }
 
     val isLandscapeMode = settings.landscapeVideoMode
-    val displayedItems = remember(uiState.mediaItems, isLandscapeMode) {
-        MediaIndexMapping.gridDisplayedItems(uiState.mediaItems, isLandscapeMode)
+    val isFavoritesTab = uiState.selectedTab == FolderTab.FAVORITES
+    val displayedItems = remember(uiState.mediaItems, isLandscapeMode, isFavoritesTab, favorites) {
+        MediaIndexMapping.gridDisplayedItems(
+            mediaItems = uiState.mediaItems,
+            isLandscapeMode = isLandscapeMode,
+            favoritesOnly = isFavoritesTab,
+            favorites = favorites
+        )
     }
     val loadError = uiState.error
 
     LaunchedEffect(returnedIndex, displayedItems.size) {
         if (displayedItems.isNotEmpty()) {
             val targetIndex = returnedIndex ?: viewModel.getSavedLastIndex(folderUri)
-            val scrollIndex = if (isLandscapeMode) {
+            val scrollIndex = if (isLandscapeMode || isFavoritesTab) {
                 val targetUri = uiState.mediaItems.getOrNull(targetIndex)?.uri
                 val found = displayedItems.indexOfFirst { it.uri == targetUri }
                 if (found >= 0) found else 0
@@ -132,120 +158,237 @@ fun FolderMediaGridScreen(
         },
         containerColor = Color.Black
     ) { paddingValues ->
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Violet500)
-            }
-        } else if (loadError is FolderLoadError.AccessLost) {
-            FolderAccessLost(
-                folderUri = folderUri,
-                onRePicked = { picked -> viewModel.onFolderRePicked(folderUri, picked) },
-                modifier = Modifier.padding(paddingValues)
-            )
-        } else if (loadError is FolderLoadError.Failed) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Folder Tabs: Semua Media vs Favorit
+            TabRow(
+                selectedTabIndex = if (uiState.selectedTab == FolderTab.ALL) 0 else 1,
+                containerColor = Color(0xFF1E1E1E),
+                contentColor = Color.White
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                Tab(
+                    selected = uiState.selectedTab == FolderTab.ALL,
+                    onClick = { viewModel.selectTab(FolderTab.ALL) },
+                    text = { Text("Semua Media", fontWeight = FontWeight.Medium) },
+                    icon = { Icon(Icons.Filled.VideoLibrary, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                )
+                Tab(
+                    selected = uiState.selectedTab == FolderTab.FAVORITES,
+                    onClick = { viewModel.selectTab(FolderTab.FAVORITES) },
+                    text = {
+                        val favCount = uiState.mediaItems.count { it.uri.toString() in favorites }
+                        Text(if (favCount > 0) "Favorit ($favCount)" else "Favorit", fontWeight = FontWeight.Medium)
+                    },
+                    icon = {
+                        Icon(
+                            Icons.Filled.Favorite,
+                            contentDescription = null,
+                            tint = if (uiState.selectedTab == FolderTab.FAVORITES) ErrorRed else Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+            }
+
+            // If Favorites tab is selected and has items: Show "Putar Semua Favorit" action bar
+            if (isFavoritesTab && displayedItems.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(SurfaceCard)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text(
-                        text = loadError.displayMessage,
-                        color = Color.White,
-                        fontSize = 15.sp
+                        text = "${displayedItems.size} item favorit",
+                        color = TextSecondary,
+                        fontSize = 13.sp
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(onClick = { viewModel.retry(folderUri) }) {
-                        Text("Retry")
+                    Button(
+                        onClick = {
+                            val fullIndex = MediaIndexMapping.gridTapToFullIndex(
+                                uiState.mediaItems,
+                                isLandscapeMode,
+                                0,
+                                favoritesOnly = true,
+                                favorites = favorites
+                            )
+                            onMediaClick(fullIndex, isLandscapeMode, true)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Violet600),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Putar Semua Favorit", fontSize = 13.sp)
                     }
                 }
             }
-        } else if (displayedItems.isNotEmpty()) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                state = gridState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                itemsIndexed(displayedItems) { index, item ->
-                    Box(
-                        modifier = Modifier
-                            .aspectRatio(1f)
-                            .background(Color.DarkGray)
-                            .clickable {
-                                onMediaClick(
-                                    MediaIndexMapping.gridTapToFullIndex(uiState.mediaItems, isLandscapeMode, index),
-                                    isLandscapeMode
+
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Violet500)
+                }
+            } else if (loadError is FolderLoadError.AccessLost) {
+                FolderAccessLost(
+                    folderUri = folderUri,
+                    onRePicked = { picked -> viewModel.onFolderRePicked(folderUri, picked) }
+                )
+            } else if (loadError is FolderLoadError.Failed) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                        Text(
+                            text = loadError.displayMessage,
+                            color = Color.White,
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(onClick = { viewModel.retry(folderUri) }) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            } else if (displayedItems.isNotEmpty()) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    state = gridState,
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    itemsIndexed(displayedItems) { index, item ->
+                        val isFav = item.uri.toString() in favorites
+                        Box(
+                            modifier = Modifier
+                                .aspectRatio(1f)
+                                .background(Color.DarkGray)
+                                .clickable {
+                                    onMediaClick(
+                                        MediaIndexMapping.gridTapToFullIndex(
+                                            uiState.mediaItems,
+                                            isLandscapeMode,
+                                            index,
+                                            favoritesOnly = isFavoritesTab,
+                                            favorites = favorites
+                                        ),
+                                        isLandscapeMode,
+                                        isFavoritesTab
+                                    )
+                                }
+                        ) {
+                            if (item.isVideo) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Movie,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.35f),
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .size(32.dp)
+                                )
+                                val context = LocalContext.current
+                                val request = remember(item.uri, item.size, item.dateModified, item.supportsThumbnail) {
+                                    videoThumbnailRequest(context, item, cacheOnly = false, crossfade = true)
+                                }
+                                AsyncImage(
+                                    model = request,
+                                    contentDescription = item.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                AsyncImage(
+                                    model = coil3.request.ImageRequest.Builder(LocalContext.current)
+                                        .data(item.uri)
+                                        .size(300, 300)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = item.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
                                 )
                             }
-                    ) {
-                        if (item.isVideo) {
-                            // Placeholder under the thumbnail: visible while it loads and if it fails.
-                            Icon(
-                                imageVector = Icons.Outlined.Movie,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.35f),
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .size(32.dp)
-                            )
-                            val context = LocalContext.current
-                            val request = remember(item.uri, item.size, item.dateModified, item.supportsThumbnail) {
-                                videoThumbnailRequest(context, item, cacheOnly = false, crossfade = true)
+                            if (item.isVideo) {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(4.dp)
+                                        .size(20.dp)
+                                )
                             }
-                            AsyncImage(
-                                model = request,
-                                contentDescription = item.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            AsyncImage(
-                                model = coil3.request.ImageRequest.Builder(LocalContext.current)
-                                    .data(item.uri)
-                                    .size(300, 300)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = item.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        if (item.isVideo) {
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.White,
+
+                            // Favorite Heart Badge / Quick Toggle
+                            IconButton(
+                                onClick = { viewModel.toggleFavorite(item.uri) },
                                 modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(4.dp)
-                                    .size(20.dp)
-                            )
+                                    .align(Alignment.BottomEnd)
+                                    .size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isFav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    contentDescription = if (isFav) "Hapus dari Favorit" else "Tambah ke Favorit",
+                                    tint = if (isFav) ErrorRed else Color.White.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-                    Text(
-                        text = if (isLandscapeMode) "No videos found in this folder." else "No media found in this folder.",
-                        color = Color.White,
-                        fontSize = 15.sp
-                    )
-                    if (isLandscapeMode && uiState.mediaItems.isNotEmpty()) {
+            } else if (isFavoritesTab) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.FavoriteBorder,
+                            contentDescription = null,
+                            tint = Color.Gray,
+                            modifier = Modifier.size(48.dp)
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedButton(onClick = { viewModel.toggleLandscapeMode() }) {
-                            Text("Switch to Reels Mode to view images")
+                        Text(
+                            text = "Belum ada media favorit di folder ini.",
+                            color = Color.White,
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Ketuk ikon hati pada media untuk menyimpannya sebagai favorit.",
+                            color = TextSecondary,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedButton(onClick = { viewModel.selectTab(FolderTab.ALL) }) {
+                            Text("Lihat Semua Media")
+                        }
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                        Text(
+                            text = if (isLandscapeMode) "No videos found in this folder." else "No media found in this folder.",
+                            color = Color.White,
+                            fontSize = 15.sp
+                        )
+                        if (isLandscapeMode && uiState.mediaItems.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(onClick = { viewModel.toggleLandscapeMode() }) {
+                                Text("Switch to Reels Mode to view images")
+                            }
                         }
                     }
                 }
