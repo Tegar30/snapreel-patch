@@ -213,6 +213,7 @@ private fun LandscapePagerContent(
     var isSpeedingUp by remember { mutableStateOf(false) }
     var showHeartAnim by remember { mutableStateOf(false) }
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
+    var isCurrentMediaZoomed by remember { mutableStateOf(false) }
 
     var isDraggingSlider by remember { mutableStateOf(false) }
     var sliderProgress by remember { mutableFloatStateOf(0f) }
@@ -227,6 +228,7 @@ private fun LandscapePagerContent(
 
     // React to horizontal page changes
     LaunchedEffect(pagerState.settledPage) {
+        isCurrentMediaZoomed = false
         val page = pagerState.settledPage
         val settledUri = uiState.videos.getOrNull(page)?.uri
         // One tick per settle on a different video (never on the initial settle).
@@ -274,7 +276,7 @@ private fun LandscapePagerContent(
                         val bottomControlsHeightPx = 100 * density
                         val isEdge = (offset.x < screenWidthPx * 0.25f || offset.x > screenWidthPx * 0.75f) &&
                             offset.y < (containerHeightPx - bottomControlsHeightPx)
-                        if (isEdge) {
+                        if (isEdge && !isCurrentMediaZoomed) {
                             try {
                                 val released = withTimeoutOrNull(250L) {
                                     tryAwaitRelease()
@@ -311,6 +313,7 @@ private fun LandscapePagerContent(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            userScrollEnabled = !isCurrentMediaZoomed,
             beyondViewportPageCount = 1,
             key = { uiState.videos[it].uri.toString() }
         ) { pageIndex ->
@@ -333,28 +336,58 @@ private fun LandscapePagerContent(
                 }
             }
 
+            LaunchedEffect(scale, isCurrentPage) {
+                if (isCurrentPage) {
+                    isCurrentMediaZoomed = scale > 1.05f
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    // Pinch-to-zoom gesture
-                    .pointerInput(Unit) {
+                    // Pinch-to-zoom & free 2D pan gesture (1-finger when zoomed, 2-finger pinch/pan)
+                    .pointerInput(containerSize) {
                         awaitPointerEventScope {
                             while (true) {
                                 val event = awaitPointerEvent()
-                                if (event.changes.size > 1) {
-                                    val zoom = event.calculateZoom()
+                                val pressedCount = event.changes.count { it.pressed }
+                                if (pressedCount > 1 || (pressedCount == 1 && scale > 1.05f)) {
+                                    val zoom = if (pressedCount > 1) event.calculateZoom() else 1f
                                     val pan = event.calculatePan()
+                                    if (zoom != 1f || pan != androidx.compose.ui.geometry.Offset.Zero) {
+                                        val oldScale = scale
+                                        val newScale = (oldScale * zoom).coerceIn(1f, 5f)
+                                        val scaleFactor = if (oldScale > 0f) newScale / oldScale else 1f
+                                        val maxX = if (containerSize.width > 0) ((containerSize.width * (newScale - 1f)) / 2f).coerceAtLeast(0f) else 1000f
+                                        val maxY = if (containerSize.height > 0) ((containerSize.height * (newScale - 1f)) / 2f).coerceAtLeast(0f) else 1000f
 
-                                    scale = (scale * zoom).coerceIn(1f, 5f)
+                                        val centroid = if (pressedCount > 1) {
+                                            event.changes.filter { it.pressed }.let { list ->
+                                                androidx.compose.ui.geometry.Offset(
+                                                    list.map { it.position.x }.average().toFloat(),
+                                                    list.map { it.position.y }.average().toFloat()
+                                                )
+                                            }
+                                        } else {
+                                            androidx.compose.ui.geometry.Offset(containerSize.width / 2f, containerSize.height / 2f)
+                                        }
+                                        val cx = centroid.x - containerSize.width / 2f
+                                        val cy = centroid.y - containerSize.height / 2f
 
-                                    if (scale > 1f) {
-                                        offsetX += pan.x
-                                        offsetY += pan.y
-                                    } else {
-                                        offsetX = 0f
-                                        offsetY = 0f
+                                        scale = newScale
+                                        if (newScale > 1f) {
+                                            offsetX = ((offsetX - cx) * scaleFactor + cx + pan.x).coerceIn(-maxX, maxX)
+                                            offsetY = ((offsetY - cy) * scaleFactor + cy + pan.y).coerceIn(-maxY, maxY)
+                                        } else {
+                                            offsetX = 0f
+                                            offsetY = 0f
+                                        }
+                                        event.changes.forEach { change ->
+                                            if (change.position != change.previousPosition || pressedCount > 1) {
+                                                change.consume()
+                                            }
+                                        }
                                     }
-                                    event.changes.forEach { it.consume() }
                                 }
                             }
                         }

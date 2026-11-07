@@ -236,33 +236,53 @@ fun VideoPage(
                     }
                 )
             }
-            // Pinch-to-zoom & boundary-clamped pan gesture
+            // Pinch-to-zoom & free 2D pan gesture (1-finger when zoomed, 2-finger pinch/pan)
             .pointerInput(containerSize) {
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent()
-                        // Multi-finger gesture for zoom/pan
-                        if (event.changes.size > 1) {
-                            val zoom = event.calculateZoom()
+                        val pressedCount = event.changes.count { it.pressed }
+                        if (pressedCount > 1 || (pressedCount == 1 && scaleAnim.value > 1.05f)) {
+                            val zoom = if (pressedCount > 1) event.calculateZoom() else 1f
                             val pan = event.calculatePan()
+                            if (zoom != 1f || pan != androidx.compose.ui.geometry.Offset.Zero) {
+                                val oldScale = scaleAnim.value
+                                val newScale = (oldScale * zoom).coerceIn(1f, 5f)
+                                val scaleFactor = if (oldScale > 0f) newScale / oldScale else 1f
+                                val maxX = if (containerSize.width > 0) ((containerSize.width * (newScale - 1f)) / 2f).coerceAtLeast(0f) else 1000f
+                                val maxY = if (containerSize.height > 0) ((containerSize.height * (newScale - 1f)) / 2f).coerceAtLeast(0f) else 1000f
 
-                            val newScale = (scaleAnim.value * zoom).coerceIn(1f, 5f)
-                            val maxX = if (containerSize.width > 0) ((containerSize.width * (newScale - 1f)) / 2f).coerceAtLeast(0f) else 1000f
-                            val maxY = if (containerSize.height > 0) ((containerSize.height * (newScale - 1f)) / 2f).coerceAtLeast(0f) else 1000f
-
-                            scope.launch {
-                                scaleAnim.snapTo(newScale)
-                                if (newScale > 1f) {
-                                    val newX = (offsetXAnim.value + pan.x).coerceIn(-maxX, maxX)
-                                    val newY = (offsetYAnim.value + pan.y).coerceIn(-maxY, maxY)
-                                    offsetXAnim.snapTo(newX)
-                                    offsetYAnim.snapTo(newY)
+                                val centroid = if (pressedCount > 1) {
+                                    event.changes.filter { it.pressed }.let { list ->
+                                        androidx.compose.ui.geometry.Offset(
+                                            list.map { it.position.x }.average().toFloat(),
+                                            list.map { it.position.y }.average().toFloat()
+                                        )
+                                    }
                                 } else {
-                                    offsetXAnim.snapTo(0f)
-                                    offsetYAnim.snapTo(0f)
+                                    androidx.compose.ui.geometry.Offset(containerSize.width / 2f, containerSize.height / 2f)
+                                }
+                                val cx = centroid.x - containerSize.width / 2f
+                                val cy = centroid.y - containerSize.height / 2f
+
+                                scope.launch {
+                                    scaleAnim.snapTo(newScale)
+                                    if (newScale > 1f) {
+                                        val newX = ((offsetXAnim.value - cx) * scaleFactor + cx + pan.x).coerceIn(-maxX, maxX)
+                                        val newY = ((offsetYAnim.value - cy) * scaleFactor + cy + pan.y).coerceIn(-maxY, maxY)
+                                        offsetXAnim.snapTo(newX)
+                                        offsetYAnim.snapTo(newY)
+                                    } else {
+                                        offsetXAnim.snapTo(0f)
+                                        offsetYAnim.snapTo(0f)
+                                    }
+                                }
+                                event.changes.forEach { change ->
+                                    if (change.position != change.previousPosition || pressedCount > 1) {
+                                        change.consume()
+                                    }
                                 }
                             }
-                            event.changes.forEach { it.consume() }
                         }
                     }
                 }
