@@ -258,8 +258,6 @@ private fun ReelsContent(
                     aspectRatioMode = uiState.settings.aspectRatioMode,
                     // Zero logic in lambdas — just call ViewModel
                     onTap = { viewModel.onVideoTap() },
-                    onDoubleTapLeft = { viewModel.seekBackward() },
-                    onDoubleTapRight = { viewModel.seekForward() },
                     onMuteToggle = { viewModel.toggleMute() },
                     onSeekTo = { pos -> viewModel.seekTo(pos) },
                     onSliderDragStart = { viewModel.onSliderDragStart() },

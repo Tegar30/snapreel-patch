@@ -29,6 +29,7 @@ enum class FolderTab {
 }
 
 data class GridUiState(
+    val folderName: String = "Folder Media",
     val mediaItems: List<MediaItem> = emptyList(),
     val isLoading: Boolean = true,
     val error: FolderLoadError? = null,
@@ -103,22 +104,26 @@ class FolderGridViewModel @Inject constructor(
     private fun scan(folderUri: Uri, forceRefresh: Boolean) {
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
+            val displayName = runCatching { mediaRepository.getFolderDisplayName(folderUri) }
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?: "Folder Media"
             try {
                 val items = mediaRepository.scanFolder(folderUri, forceRefresh = forceRefresh)
                 if (items.isEmpty()) {
                     _uiState.update {
-                        it.copy(mediaItems = emptyList(), isLoading = false, error = FolderLoadError.NoMedia)
+                        it.copy(folderName = displayName, mediaItems = emptyList(), isLoading = false, error = FolderLoadError.NoMedia)
                     }
                 } else {
                     _uiState.update {
-                        it.copy(mediaItems = items, isLoading = false, error = null)
+                        it.copy(folderName = displayName, mediaItems = items, isLoading = false, error = null)
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(mediaItems = emptyList(), isLoading = false, error = e.toFolderLoadError())
+                    it.copy(folderName = displayName, mediaItems = emptyList(), isLoading = false, error = e.toFolderLoadError())
                 }
             }
         }

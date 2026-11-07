@@ -219,7 +219,9 @@ private fun LandscapePagerContent(
     var sliderProgress by remember { mutableFloatStateOf(0f) }
     val currentTime = remember { mutableLongStateOf(0L) }
     val totalTime = remember { mutableLongStateOf(0L) }
-    var isFillScreen by remember { mutableStateOf(false) }
+    var isFillScreen by remember(uiState.settings.aspectRatioMode) {
+        mutableStateOf(uiState.settings.aspectRatioMode == com.snapreel.app.data.preferences.AspectRatioMode.FILL)
+    }
     val pages by viewModel.pages.collectAsState()
     val currentFailure = uiState.videos.getOrNull(pagerState.settledPage)?.let { pages[it.uri]?.failure }
     val view = LocalView.current
@@ -701,8 +703,7 @@ private fun LandscapePagerContent(
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(horizontal = 12.dp)
-                                .height(22.dp),
+                                .padding(horizontal = 12.dp),
                             colors = SliderDefaults.colors(
                                 thumbColor = Violet400,
                                 activeTrackColor = Violet500,
@@ -726,10 +727,10 @@ private fun LandscapePagerContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             IconButton(
                                 onClick = { viewModel.seekBackward(10_000) },
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Replay10,
@@ -740,7 +741,7 @@ private fun LandscapePagerContent(
 
                             IconButton(
                                 onClick = { viewModel.seekForward(10_000) },
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Forward10,
@@ -750,11 +751,11 @@ private fun LandscapePagerContent(
                             }
                         }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             // Loop Toggle
                             IconButton(
                                 onClick = { viewModel.toggleLoop() },
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     imageVector = if (uiState.isLooping) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
@@ -766,12 +767,12 @@ private fun LandscapePagerContent(
                             // Mute Toggle
                             IconButton(
                                 onClick = { viewModel.toggleMute() },
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     imageVector = if (uiState.isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                                     contentDescription = if (uiState.isMuted) "Unmute" else "Mute",
-                                    tint = if (uiState.isMuted) ErrorRed else Color.White
+                                    tint = Color.White
                                 )
                             }
                         }

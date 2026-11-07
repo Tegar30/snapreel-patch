@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -355,7 +357,11 @@ private fun SettingsToggleItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            )
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -380,7 +386,7 @@ private fun SettingsToggleItem(
         }
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
                 checkedTrackColor = Violet500,
@@ -433,12 +439,25 @@ private fun SettingsClickItem(
     }
 }
 
+private enum class SortField(val label: String, val primary: SortOrder, val secondary: SortOrder, val primaryLabel: String, val secondaryLabel: String) {
+    DATE("Date Modified", SortOrder.DATE_NEWEST, SortOrder.DATE_OLDEST, "Newest first", "Oldest first"),
+    NAME("File Name", SortOrder.NAME_ASC, SortOrder.NAME_DESC, "A → Z", "Z → A"),
+    SIZE("File Size", SortOrder.SIZE_LARGEST, SortOrder.SIZE_SMALLEST, "Largest first", "Smallest first"),
+    TYPE("Media Type", SortOrder.TYPE_VIDEO_FIRST, SortOrder.TYPE_IMAGE_FIRST, "Videos first", "Images first")
+}
+
 @Composable
 private fun SortOrderDialog(
     currentOrder: SortOrder,
     onOrderSelected: (SortOrder) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val initialField = remember(currentOrder) {
+        SortField.entries.first { it.primary == currentOrder || it.secondary == currentOrder }
+    }
+    var selectedField by remember(currentOrder) { mutableStateOf(initialField) }
+    var isPrimaryDirection by remember(currentOrder) { mutableStateOf(initialField.primary == currentOrder) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = SurfaceVariant,
@@ -447,18 +466,31 @@ private fun SortOrderDialog(
         },
         text = {
             Column {
-                SortOrder.entries.forEach { order ->
+                Text(
+                    text = "Sort by",
+                    color = TextMuted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                SortField.entries.forEach { field ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { onOrderSelected(order) }
-                            .padding(12.dp),
+                            .clickable {
+                                selectedField = field
+                                onOrderSelected(if (isPrimaryDirection) field.primary else field.secondary)
+                            }
+                            .padding(vertical = 8.dp, horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = currentOrder == order,
-                            onClick = { onOrderSelected(order) },
+                            selected = selectedField == field,
+                            onClick = {
+                                selectedField = field
+                                onOrderSelected(if (isPrimaryDirection) field.primary else field.secondary)
+                            },
                             colors = RadioButtonDefaults.colors(
                                 selectedColor = Violet500,
                                 unselectedColor = TextMuted
@@ -466,11 +498,51 @@ private fun SortOrderDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = formatSortOrder(order),
-                            color = if (currentOrder == order) TextPrimary else TextSecondary,
+                            text = field.label,
+                            color = if (selectedField == field) TextPrimary else TextSecondary,
                             fontSize = 14.sp
                         )
                     }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Direction",
+                    color = TextMuted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = isPrimaryDirection,
+                        onClick = {
+                            isPrimaryDirection = true
+                            onOrderSelected(selectedField.primary)
+                        },
+                        label = { Text(selectedField.primaryLabel, fontSize = 12.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Violet600.copy(alpha = 0.25f),
+                            selectedLabelColor = Violet300
+                        )
+                    )
+                    FilterChip(
+                        selected = !isPrimaryDirection,
+                        onClick = {
+                            isPrimaryDirection = false
+                            onOrderSelected(selectedField.secondary)
+                        },
+                        label = { Text(selectedField.secondaryLabel, fontSize = 12.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Violet600.copy(alpha = 0.25f),
+                            selectedLabelColor = Violet300
+                        )
+                    )
                 }
             }
         },
@@ -488,7 +560,7 @@ private fun DelayDialog(
     onDelaySelected: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val options = listOf(2, 3, 5, 8, 10, 15)
+    val options = listOf(3, 5, 10, 15)
 
     AlertDialog(
         onDismissRequest = onDismiss,

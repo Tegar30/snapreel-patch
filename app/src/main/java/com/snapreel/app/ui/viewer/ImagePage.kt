@@ -22,6 +22,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
@@ -106,6 +109,12 @@ fun ImagePage(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction(if (showControls) "Hide controls" else "Show controls") { currentOnTap(); true },
+                    CustomAccessibilityAction(if (currentIsFavorite) "Remove Favorite" else "Add Favorite") { currentOnFavoriteToggle(); true }
+                )
+            }
             .onSizeChanged { containerSize = it }
             // Tap gestures: single tap toggles controls, double tap smoothly resets zoom
             .pointerInput(Unit) {
@@ -278,14 +287,14 @@ fun ImagePage(
                 IconButton(
                     onClick = onFavoriteToggle,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.45f))
                 ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         contentDescription = if (isFavorite) "Remove Favorite" else "Add Favorite",
-                        tint = if (isFavorite) Color.Red else Color.White,
+                        tint = if (isFavorite) HeartRed else Color.White,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -294,7 +303,7 @@ fun ImagePage(
                 IconButton(
                     onClick = { manualZoomOverride = !shouldZoom },
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.45f))
                 ) {

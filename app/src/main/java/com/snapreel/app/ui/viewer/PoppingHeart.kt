@@ -15,9 +15,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import com.snapreel.app.ui.theme.HeartRed
 import kotlinx.coroutines.delay
 
 /**
@@ -50,7 +50,7 @@ fun PoppingHeart(
         Icon(
             imageVector = Icons.Filled.Favorite,
             contentDescription = null,
-            tint = Color(0xFFFF2D55),
+            tint = HeartRed,
             modifier = Modifier
                 .size(110.dp)
                 .graphicsLayer {

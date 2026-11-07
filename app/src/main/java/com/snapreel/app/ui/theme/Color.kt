@@ -24,6 +24,7 @@ val TextDisabled = Color(0xFF525252)
 
 // Functional
 val ErrorRed = Color(0xFFEF4444)
+val HeartRed = Color(0xFFFF2D55)
 val SuccessGreen = Color(0xFF22C55E)
 val WarningAmber = Color(0xFFF59E0B)
 
