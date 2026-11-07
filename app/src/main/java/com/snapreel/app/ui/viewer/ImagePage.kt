@@ -70,8 +70,12 @@ fun ImagePage(
         AspectRatioMode.FIT -> false
     }
 
-    // Use rememberUpdatedState so the tap callback is always fresh
+    // Use rememberUpdatedState so callbacks are always fresh
     val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnFavoriteToggle by rememberUpdatedState(onFavoriteToggle)
+    val currentIsFavorite by rememberUpdatedState(isFavorite)
+    var showHeartAnim by remember { mutableStateOf(false) }
+    val view = androidx.compose.ui.platform.LocalView.current
 
     LaunchedEffect(isCurrentPage, autoAdvance) {
         if (isCurrentPage && autoAdvance) {
@@ -114,6 +118,12 @@ fun ImagePage(
                                 launch { offsetXAnim.animateTo(0f, tween(200, easing = FastOutSlowInEasing)) }
                                 launch { offsetYAnim.animateTo(0f, tween(200, easing = FastOutSlowInEasing)) }
                             }
+                        } else {
+                            if (!currentIsFavorite) {
+                                currentOnFavoriteToggle()
+                            }
+                            showHeartAnim = true
+                            view.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
                         }
                     }
                 )
@@ -186,6 +196,13 @@ fun ImagePage(
                     translationX = offsetXAnim.value
                     translationY = offsetYAnim.value
                 }
+        )
+
+        // Double-tap heart animation (TikTok / Instagram style)
+        PoppingHeart(
+            visible = showHeartAnim,
+            onAnimationEnd = { showHeartAnim = false },
+            modifier = Modifier.align(Alignment.Center)
         )
 
         // Image type indicator (top-left area, below status bar) — hides in immersive

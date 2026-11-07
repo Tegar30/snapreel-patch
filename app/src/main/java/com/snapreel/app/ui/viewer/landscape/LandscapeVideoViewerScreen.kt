@@ -34,12 +34,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -58,11 +60,13 @@ import com.snapreel.app.ui.common.FolderAccessLost
 import com.snapreel.app.ui.theme.*
 import com.snapreel.app.ui.viewer.FolderEvent
 import com.snapreel.app.ui.viewer.PlaybackFailureOverlay
+import com.snapreel.app.ui.viewer.PoppingHeart
 import com.snapreel.app.ui.viewer.hapticTickConstant
 import com.snapreel.app.ui.viewer.shouldTick
 import com.snapreel.app.util.thumbnail.videoThumbnailRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 fun Context.findActivity(): Activity? {
     var current: Context = this
@@ -205,9 +209,11 @@ private fun LandscapePagerContent(
         pageCount = { uiState.videos.size }
     )
 
-    // Seek states
-    val showSeekLeft = remember { mutableStateOf(false) }
-    val showSeekRight = remember { mutableStateOf(false) }
+    val favorites by viewModel.favorites.collectAsState(initial = emptySet())
+    var isSpeedingUp by remember { mutableStateOf(false) }
+    var showHeartAnim by remember { mutableStateOf(false) }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+
     var isDraggingSlider by remember { mutableStateOf(false) }
     var sliderProgress by remember { mutableFloatStateOf(0f) }
     val currentTime = remember { mutableLongStateOf(0L) }
@@ -259,18 +265,43 @@ private fun LandscapePagerContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
+            .onSizeChanged { containerSize = it }
+            .pointerInput(containerSize) {
                 detectTapGestures(
+                    onPress = { offset ->
+                        val screenWidthPx = containerSize.width.takeIf { it > 0 }?.toFloat() ?: (screenWidth * density)
+                        val containerHeightPx = containerSize.height.takeIf { it > 0 }?.toFloat() ?: Float.MAX_VALUE
+                        val bottomControlsHeightPx = 100 * density
+                        val isEdge = (offset.x < screenWidthPx * 0.25f || offset.x > screenWidthPx * 0.75f) &&
+                            offset.y < (containerHeightPx - bottomControlsHeightPx)
+                        if (isEdge) {
+                            try {
+                                val released = withTimeoutOrNull(250L) {
+                                    tryAwaitRelease()
+                                }
+                                if (released == null) {
+                                    isSpeedingUp = true
+                                    viewModel.setPlaybackSpeed(2f)
+                                    view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                    tryAwaitRelease()
+                                }
+                            } finally {
+                                if (isSpeedingUp) {
+                                    isSpeedingUp = false
+                                    viewModel.setPlaybackSpeed(1f)
+                                }
+                            }
+                        }
+                    },
                     onTap = { viewModel.onVideoTap() },
-                    onDoubleTap = { offset ->
-                        val tapX = offset.x
-                        val screenWidthPx = screenWidth * density
-                        if (tapX < screenWidthPx / 2) {
-                            showSeekLeft.value = true
-                            viewModel.seekBackward(10_000)
-                        } else {
-                            showSeekRight.value = true
-                            viewModel.seekForward(10_000)
+                    onDoubleTap = {
+                        currentVideo?.let { video ->
+                            val isFav = favorites.contains(video.uri.toString())
+                            if (!isFav) {
+                                viewModel.toggleFavorite(video.uri)
+                            }
+                            showHeartAnim = true
+                            view.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
                         }
                     }
                 )
@@ -400,51 +431,45 @@ private fun LandscapePagerContent(
             }
         }
 
-        // Double Tap Indicators
-        LaunchedEffect(showSeekLeft.value) {
-            if (showSeekLeft.value) {
-                delay(600)
-                showSeekLeft.value = false
-            }
-        }
-        AnimatedVisibility(
-            visible = showSeekLeft.value,
-            enter = fadeIn(tween(100)),
-            exit = fadeOut(tween(300)),
-            modifier = Modifier.align(Alignment.CenterStart).padding(start = 64.dp)
-        ) {
-            Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.6f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Icon(imageVector = Icons.Filled.FastRewind, contentDescription = null, tint = Color.White)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("10s", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-            }
-        }
+        // Double-tap heart animation (TikTok / Instagram style)
+        PoppingHeart(
+            visible = showHeartAnim,
+            onAnimationEnd = { showHeartAnim = false },
+            modifier = Modifier.align(Alignment.Center)
+        )
 
-        LaunchedEffect(showSeekRight.value) {
-            if (showSeekRight.value) {
-                delay(600)
-                showSeekRight.value = false
-            }
-        }
+        // 2X Speed indicator pill (TikTok style)
         AnimatedVisibility(
-            visible = showSeekRight.value,
-            enter = fadeIn(tween(100)),
-            exit = fadeOut(tween(300)),
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 64.dp)
+            visible = isSpeedingUp,
+            enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.85f),
+            exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.85f),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 18.dp)
         ) {
-            Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.6f)) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.Black.copy(alpha = 0.65f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
-                    Text("10s", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(imageVector = Icons.Filled.FastForward, contentDescription = null, tint = Color.White)
+                    Icon(
+                        imageVector = Icons.Filled.FastForward,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "2X Speed",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
                 }
             }
         }

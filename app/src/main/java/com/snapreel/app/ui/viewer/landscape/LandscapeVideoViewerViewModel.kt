@@ -245,6 +245,10 @@ class LandscapeVideoViewerViewModel @Inject constructor(
         _uiState.update { it.copy(isLooping = newLoop) }
     }
 
+    fun setPlaybackSpeed(speed: Float) {
+        pool.setPlaybackSpeed(speed)
+    }
+
     fun seekForward(millis: Long = 10_000) {
         pool.seekBy(millis)
     }
