@@ -243,6 +243,10 @@ object Adapters {
                 type = NavType.BoolType
                 defaultValue = false
             },
+            navArgument("favoritesOnly") {
+                type = NavType.BoolType
+                defaultValue = false
+            },
         )
         composable(Routes.VIEWER, arguments = viewerArguments) {}
         composable(Routes.LANDSCAPE_VIEWER, arguments = viewerArguments) {}

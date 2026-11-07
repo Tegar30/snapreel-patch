@@ -79,6 +79,7 @@ fun LandscapeVideoViewerScreen(
     folderUri: Uri,
     startIndex: Int = 0,
     fresh: Boolean = false,
+    favoritesOnly: Boolean = false,
     onBack: (Int) -> Unit,
     onOpenOtherFolder: (Uri) -> Unit = {},
     viewModel: LandscapeVideoViewerViewModel = hiltViewModel()
@@ -128,13 +129,7 @@ fun LandscapeVideoViewerScreen(
 
     // 3. Resolve return index to save on back
     val onExit: () -> Unit = {
-        val currentVideo = uiState.videos.getOrNull(uiState.currentIndex)
-        val returnIndex = if (currentVideo != null) {
-            val idx = uiState.originalItems.indexOfFirst { it.uri == currentVideo.uri }
-            if (idx >= 0) idx else uiState.currentIndex
-        } else {
-            0
-        }
+        val returnIndex = viewModel.currentFullIndex()
         // Pause and free the neighbors first, then pop.
         viewModel.onLeaving()
         onBack(returnIndex)
@@ -144,8 +139,8 @@ fun LandscapeVideoViewerScreen(
         onExit()
     }
 
-    LaunchedEffect(folderUri, startIndex) {
-        viewModel.loadVideos(folderUri, startIndex, fresh)
+    LaunchedEffect(folderUri, startIndex, favoritesOnly) {
+        viewModel.loadVideos(folderUri, startIndex, fresh, favoritesOnly)
     }
 
     Box(

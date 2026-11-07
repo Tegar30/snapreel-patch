@@ -56,6 +56,18 @@ class LandscapeVideoViewerViewModel @Inject constructor(
     /** Per-page player state (player, video size, first frame, failure), keyed by item URI. */
     val pages: StateFlow<Map<Uri, PageState>> = pool.pages
 
+    val favorites: StateFlow<Set<String>> = appPreferences.favorites
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    var favoritesOnly: Boolean = false
+        private set
+
+    fun toggleFavorite(uri: Uri) {
+        viewModelScope.launch {
+            appPreferences.toggleFavorite(uri.toString())
+        }
+    }
+
     init {
         // No thumbnail generation starts while a viewer is open (the player gets the decoders).
         thumbnailWorkGate.viewerOpened()
@@ -91,14 +103,16 @@ class LandscapeVideoViewerViewModel @Inject constructor(
      * and starts at the saved item, found by its URI, falling back to [requestedIndex] (a full-list
      * index). Otherwise (a grid tap) the viewer opens the snapshot the grid shows.
      */
-    fun loadVideos(folderUri: Uri, requestedIndex: Int = 0, fresh: Boolean = false) {
+    fun loadVideos(folderUri: Uri, requestedIndex: Int = 0, fresh: Boolean = false, favoritesOnly: Boolean = false) {
         if (loadStarted) return
         loadStarted = true
-        load(folderUri, requestedIndex, fresh)
+        this.favoritesOnly = favoritesOnly
+        load(folderUri, requestedIndex, fresh, favoritesOnly)
     }
 
-    private fun load(folderUri: Uri, requestedIndex: Int, fresh: Boolean) {
+    private fun load(folderUri: Uri, requestedIndex: Int, fresh: Boolean, favoritesOnly: Boolean) {
         viewModelScope.launch {
+            val favSet = if (favoritesOnly) appPreferences.favorites.first() else emptySet()
             val cached = if (fresh) null else mediaRepository.getCachedMedia(folderUri)
             if (cached == null) _uiState.update { it.copy(isLoading = true, error = null) }
             val allItems = cached
@@ -113,13 +127,22 @@ class LandscapeVideoViewerViewModel @Inject constructor(
                     return@launch
                 }
 
-            val videoList = allItems.filter { it.isVideo }
+            val videoList = if (favoritesOnly) {
+                allItems.filter { it.isVideo && it.uri.toString() in favSet }
+            } else {
+                allItems.filter { it.isVideo }
+            }
             if (videoList.isEmpty()) {
+                val error = if (favoritesOnly && allItems.any { it.isVideo }) {
+                    FolderLoadError.NoFavorites
+                } else {
+                    FolderLoadError.NoVideos
+                }
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         originalItems = allItems,
-                        error = FolderLoadError.NoVideos
+                        error = error
                     )
                 }
                 return@launch
@@ -132,7 +155,12 @@ class LandscapeVideoViewerViewModel @Inject constructor(
                 requestedIndex
             }
             // Map the requested index from the original full list to the videoList index
-            val resolvedIndex = MediaIndexMapping.fullToLandscapeIndex(allItems, requestedFullIndex) ?: 0
+            val resolvedIndex = MediaIndexMapping.fullToLandscapeIndex(
+                allItems,
+                requestedFullIndex,
+                favoritesOnly = favoritesOnly,
+                favorites = favSet
+            ) ?: 0
 
             _uiState.update {
                 it.copy(
@@ -275,9 +303,22 @@ class LandscapeVideoViewerViewModel @Inject constructor(
         viewModelScope.launch {
             val state = _uiState.value
             val currentVideo = state.videos.getOrNull(videoIndex) ?: return@launch
-            val indexToSave = MediaIndexMapping.landscapeToFullIndex(state.originalItems, videoIndex) ?: videoIndex
+            val favSet = if (favoritesOnly) appPreferences.favorites.first() else emptySet()
+            val indexToSave = MediaIndexMapping.landscapeToFullIndex(
+                state.originalItems,
+                videoIndex,
+                favoritesOnly = favoritesOnly,
+                favorites = favSet
+            ) ?: videoIndex
             appPreferences.updateLastViewed(folderUri.toString(), indexToSave, currentVideo.uri.toString())
         }
+    }
+
+    fun currentFullIndex(): Int {
+        val state = _uiState.value
+        val currentVideo = state.videos.getOrNull(state.currentIndex) ?: return state.currentIndex
+        val found = state.originalItems.indexOfFirst { it.uri == currentVideo.uri }
+        return if (found >= 0) found else state.currentIndex
     }
 
     /**
@@ -287,7 +328,7 @@ class LandscapeVideoViewerViewModel @Inject constructor(
     fun onFolderRePicked(currentFolder: Uri, picked: Uri, requestedIndex: Int) {
         mediaRepository.takePersistableAccess(picked)
         if (mediaRepository.isSameTree(currentFolder, picked)) {
-            load(currentFolder, requestedIndex, fresh = true)
+            load(currentFolder, requestedIndex, fresh = true, favoritesOnly = favoritesOnly)
         } else {
             viewModelScope.launch {
                 mediaRepository.addPickedFolder(picked)

@@ -33,6 +33,7 @@ sealed interface FolderLoadError {
     data class AccessLost(val reason: AccessLostReason) : FolderLoadError
     data object NoMedia : FolderLoadError
     data object NoVideos : FolderLoadError
+    data object NoFavorites : FolderLoadError
     data class Failed(val message: String) : FolderLoadError
 }
 
@@ -53,6 +54,7 @@ val FolderLoadError.displayMessage: String
         is FolderLoadError.AccessLost -> ACCESS_LOST_MESSAGE
         FolderLoadError.NoMedia -> "No media found in this folder"
         FolderLoadError.NoVideos -> "No videos found in this folder"
+        FolderLoadError.NoFavorites -> "No favorite videos found in this folder"
         is FolderLoadError.Failed -> "Failed to load media: $message"
     }
 

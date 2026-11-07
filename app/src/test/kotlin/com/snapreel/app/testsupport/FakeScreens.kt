@@ -55,23 +55,35 @@ class FakeScreens(
         folderUri: Uri,
         returnedIndex: Int?,
         onBack: () -> Unit,
-        onMediaClick: (Int, Boolean) -> Unit,
+        onMediaClick: (Int, Boolean, Boolean) -> Unit,
         onOpenOtherFolder: (Uri) -> Unit,
     ) {
         Column {
-            Button(onClick = burstOf { onMediaClick(0, false) }, modifier = Modifier.testTag(Tags.GRID_TILE)) { Text("tile") }
+            Button(onClick = burstOf { onMediaClick(0, false, false) }, modifier = Modifier.testTag(Tags.GRID_TILE)) { Text("tile") }
             Button(onClick = burstOf(onBack), modifier = Modifier.testTag(Tags.GRID_BACK)) { Text("back") }
             Button(onClick = burstOf { onOpenOtherFolder(otherFolder) }, modifier = Modifier.testTag(Tags.GRID_OTHER)) { Text("other") }
         }
     }
 
     @Composable
-    override fun Viewer(folderUri: Uri, startIndex: Int, fresh: Boolean, onBack: (Int) -> Unit, onOpenOtherFolder: (Uri) -> Unit) =
-        FakeViewer(onBack, onOpenOtherFolder)
+    override fun Viewer(
+        folderUri: Uri,
+        startIndex: Int,
+        fresh: Boolean,
+        favoritesOnly: Boolean,
+        onBack: (Int) -> Unit,
+        onOpenOtherFolder: (Uri) -> Unit
+    ) = FakeViewer(onBack, onOpenOtherFolder)
 
     @Composable
-    override fun LandscapeViewer(folderUri: Uri, startIndex: Int, fresh: Boolean, onBack: (Int) -> Unit, onOpenOtherFolder: (Uri) -> Unit) =
-        FakeViewer(onBack, onOpenOtherFolder)
+    override fun LandscapeViewer(
+        folderUri: Uri,
+        startIndex: Int,
+        fresh: Boolean,
+        favoritesOnly: Boolean,
+        onBack: (Int) -> Unit,
+        onOpenOtherFolder: (Uri) -> Unit
+    ) = FakeViewer(onBack, onOpenOtherFolder)
 
     @Composable
     private fun FakeViewer(onBack: (Int) -> Unit, onOpenOtherFolder: (Uri) -> Unit) {

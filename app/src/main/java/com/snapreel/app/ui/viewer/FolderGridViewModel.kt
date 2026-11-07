@@ -23,10 +23,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class FolderTab {
+    ALL,
+    FAVORITES
+}
+
 data class GridUiState(
     val mediaItems: List<MediaItem> = emptyList(),
     val isLoading: Boolean = true,
-    val error: FolderLoadError? = null
+    val error: FolderLoadError? = null,
+    val selectedTab: FolderTab = FolderTab.ALL
 )
 
 /** One-off events for the grid screen. */
@@ -52,6 +58,19 @@ class FolderGridViewModel @Inject constructor(
 
     val settings: StateFlow<AppSettings> = appPreferences.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
+
+    val favorites: StateFlow<Set<String>> = appPreferences.favorites
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    fun selectTab(tab: FolderTab) {
+        _uiState.update { it.copy(selectedTab = tab) }
+    }
+
+    fun toggleFavorite(uri: Uri) {
+        viewModelScope.launch {
+            appPreferences.toggleFavorite(uri.toString())
+        }
+    }
 
     fun toggleLandscapeMode() {
         viewModelScope.launch {

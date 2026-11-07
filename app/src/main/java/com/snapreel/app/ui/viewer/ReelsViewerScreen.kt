@@ -37,6 +37,7 @@ fun ReelsViewerScreen(
     folderUri: Uri,
     startIndex: Int = 0,
     fresh: Boolean = false,
+    favoritesOnly: Boolean = false,
     onBack: (Int) -> Unit,
     onOpenOtherFolder: (Uri) -> Unit = {},
     viewModel: ReelsViewerViewModel = hiltViewModel()
@@ -58,7 +59,7 @@ fun ReelsViewerScreen(
     // Leaving: pause and free the neighbors first, then pop.
     val leave: () -> Unit = {
         viewModel.onLeaving()
-        onBack(uiState.currentIndex)
+        onBack(viewModel.currentFullIndex())
     }
 
     // Intercept system back button / back gesture
@@ -67,8 +68,8 @@ fun ReelsViewerScreen(
     }
 
     // Load media on first composition
-    LaunchedEffect(folderUri, startIndex) {
-        viewModel.loadMedia(folderUri, startIndex, fresh)
+    LaunchedEffect(folderUri, startIndex, favoritesOnly) {
+        viewModel.loadMedia(folderUri, startIndex, fresh, favoritesOnly)
     }
 
     // Lifecycle-aware pause and Screen Keep-On

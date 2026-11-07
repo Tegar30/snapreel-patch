@@ -90,57 +90,81 @@ class ReelsViewerViewModel @Inject constructor(
     fun currentFailure(): PlaybackFailure? = currentUri()?.let { pool.pages.value[it]?.failure }
 
     private var loadStarted = false
+    var favoritesOnly: Boolean = false
+        private set
+    private var allOriginalItems: List<MediaItem> = emptyList()
 
     /**
      * Loads the folder once per ViewModel. [fresh] (Home's play button) rescans the folder and
      * starts at the saved item, found by its URI, falling back to [startIndex]. Otherwise (a grid
      * tap) the viewer opens the snapshot the grid shows, at [startIndex].
      */
-    fun loadMedia(folderUri: Uri, startIndex: Int = 0, fresh: Boolean = false) {
+    fun loadMedia(folderUri: Uri, startIndex: Int = 0, fresh: Boolean = false, favoritesOnly: Boolean = false) {
         if (loadStarted) return
         loadStarted = true
-        load(folderUri, startIndex, fresh)
+        this.favoritesOnly = favoritesOnly
+        load(folderUri, startIndex, fresh, favoritesOnly)
     }
 
-    private fun load(folderUri: Uri, startIndex: Int, fresh: Boolean) {
+    private fun load(folderUri: Uri, startIndex: Int, fresh: Boolean, favoritesOnly: Boolean) {
         viewModelScope.launch {
+            val favSet = if (favoritesOnly) appPreferences.favorites.first() else emptySet()
             val cached = if (fresh) null else mediaRepository.getCachedMedia(folderUri)
-            if (cached != null && cached.isNotEmpty()) {
-                val safeIndex = startIndex.coerceIn(0, cached.size - 1)
-                _uiState.update {
-                    it.copy(mediaItems = cached, isLoading = false, currentIndex = safeIndex, error = null)
+            val allItems = if (cached != null && cached.isNotEmpty()) {
+                cached
+            } else {
+                _uiState.update { it.copy(isLoading = true, error = null) }
+                try {
+                    mediaRepository.scanFolder(folderUri, forceRefresh = fresh)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _uiState.update {
+                        it.copy(isLoading = false, error = e.toFolderLoadError())
+                    }
+                    return@launch
                 }
-                onPageSettled(safeIndex)
+            }
+
+            allOriginalItems = allItems
+            val items = if (favoritesOnly) {
+                allItems.filter { it.uri.toString() in favSet }
+            } else {
+                allItems
+            }
+
+            if (items.isEmpty()) {
+                val error = if (favoritesOnly && allItems.isNotEmpty()) {
+                    FolderLoadError.NoFavorites
+                } else {
+                    FolderLoadError.NoMedia
+                }
+                _uiState.update {
+                    it.copy(mediaItems = emptyList(), isLoading = false, error = error)
+                }
                 return@launch
             }
 
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            try {
-                val items = mediaRepository.scanFolder(folderUri, forceRefresh = fresh)
-                if (items.isEmpty()) {
-                    _uiState.update {
-                        it.copy(isLoading = false, error = FolderLoadError.NoMedia)
-                    }
+            val start = if (fresh) {
+                val saved = appPreferences.recentFolder(folderUri.toString())
+                MediaIndexMapping.resolveStartIndex(items, saved?.lastItemUri, startIndex)
+            } else if (favoritesOnly) {
+                val targetUri = allItems.getOrNull(startIndex)?.uri
+                if (targetUri != null) {
+                    val found = items.indexOfFirst { it.uri == targetUri }
+                    if (found >= 0) found else 0
                 } else {
-                    val start = if (fresh) {
-                        val saved = appPreferences.recentFolder(folderUri.toString())
-                        MediaIndexMapping.resolveStartIndex(items, saved?.lastItemUri, startIndex)
-                    } else {
-                        startIndex
-                    }
-                    val safeIndex = start.coerceIn(0, items.size - 1)
-                    _uiState.update {
-                        it.copy(mediaItems = items, isLoading = false, currentIndex = safeIndex, error = null)
-                    }
-                    onPageSettled(safeIndex)
+                    startIndex
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(isLoading = false, error = e.toFolderLoadError())
-                }
+            } else {
+                startIndex
             }
+
+            val safeIndex = start.coerceIn(0, items.size - 1)
+            _uiState.update {
+                it.copy(mediaItems = items, isLoading = false, currentIndex = safeIndex, error = null)
+            }
+            onPageSettled(safeIndex)
         }
     }
 
@@ -151,7 +175,7 @@ class ReelsViewerViewModel @Inject constructor(
     fun onFolderRePicked(currentFolder: Uri, picked: Uri, startIndex: Int) {
         mediaRepository.takePersistableAccess(picked)
         if (mediaRepository.isSameTree(currentFolder, picked)) {
-            load(currentFolder, startIndex, fresh = true)
+            load(currentFolder, startIndex, fresh = true, favoritesOnly = favoritesOnly)
         } else {
             viewModelScope.launch {
                 mediaRepository.addPickedFolder(picked)
@@ -249,10 +273,26 @@ class ReelsViewerViewModel @Inject constructor(
 
     /** Saves the settled position: its full-list index and the item's URI. */
     fun saveLastViewed(folderUri: Uri, index: Int) {
-        val itemUri = _uiState.value.mediaItems.getOrNull(index)?.uri?.toString()
-        viewModelScope.launch {
-            appPreferences.updateLastViewed(folderUri.toString(), index, itemUri)
+        val currentItem = _uiState.value.mediaItems.getOrNull(index) ?: return
+        val itemUri = currentItem.uri.toString()
+        val fullIndex = if (allOriginalItems.isNotEmpty()) {
+            val found = allOriginalItems.indexOfFirst { it.uri == currentItem.uri }
+            if (found >= 0) found else index
+        } else {
+            index
         }
+        viewModelScope.launch {
+            appPreferences.updateLastViewed(folderUri.toString(), fullIndex, itemUri)
+        }
+    }
+
+    fun currentFullIndex(): Int {
+        val currentItem = _uiState.value.mediaItems.getOrNull(_uiState.value.currentIndex) ?: return _uiState.value.currentIndex
+        if (allOriginalItems.isNotEmpty()) {
+            val found = allOriginalItems.indexOfFirst { it.uri == currentItem.uri }
+            if (found >= 0) return found
+        }
+        return _uiState.value.currentIndex
     }
 
     fun toggleMute() {
