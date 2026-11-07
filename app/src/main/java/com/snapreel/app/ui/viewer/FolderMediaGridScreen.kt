@@ -118,7 +118,7 @@ fun FolderMediaGridScreen(
                 title = { 
                     Column {
                         Text(
-                            "Folder Media", 
+                            uiState.folderName, 
                             maxLines = 1, 
                             overflow = TextOverflow.Ellipsis,
                             color = Color.White,
@@ -127,7 +127,7 @@ fun FolderMediaGridScreen(
                         )
                         Text(
                             text = if (isLandscapeMode) "Landscape Mode (Videos Only)" else "Reels Mode (All Media)",
-                            color = if (isLandscapeMode) Violet400 else Color.Gray,
+                            color = if (isLandscapeMode) Violet400 else TextSecondary,
                             fontSize = 11.sp
                         )
                     }
@@ -154,7 +154,7 @@ fun FolderMediaGridScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1E1E1E)
+                    containerColor = SurfaceCard
                 )
             )
         },
@@ -165,16 +165,16 @@ fun FolderMediaGridScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Folder Tabs: Semua Media vs Favorit
+            // Folder Tabs: All Media vs Favorites
             TabRow(
                 selectedTabIndex = if (uiState.selectedTab == FolderTab.ALL) 0 else 1,
-                containerColor = Color(0xFF1E1E1E),
+                containerColor = SurfaceCard,
                 contentColor = Color.White
             ) {
                 Tab(
                     selected = uiState.selectedTab == FolderTab.ALL,
                     onClick = { viewModel.selectTab(FolderTab.ALL) },
-                    text = { Text("Semua Media", fontWeight = FontWeight.Medium) },
+                    text = { Text("All Media", fontWeight = FontWeight.Medium) },
                     icon = { Icon(Icons.Filled.VideoLibrary, contentDescription = null, modifier = Modifier.size(18.dp)) }
                 )
                 Tab(
@@ -184,20 +184,20 @@ fun FolderMediaGridScreen(
                         val favCount = remember(uiState.mediaItems, favorites) {
                             uiState.mediaItems.count { it.uri.toString() in favorites }
                         }
-                        Text(if (favCount > 0) "Favorit ($favCount)" else "Favorit", fontWeight = FontWeight.Medium)
+                        Text(if (favCount > 0) "Favorites ($favCount)" else "Favorites", fontWeight = FontWeight.Medium)
                     },
                     icon = {
                         Icon(
                             Icons.Filled.Favorite,
                             contentDescription = null,
-                            tint = if (uiState.selectedTab == FolderTab.FAVORITES) ErrorRed else Color.White,
+                            tint = if (uiState.selectedTab == FolderTab.FAVORITES) HeartRed else Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                 )
             }
 
-            // If Favorites tab is selected and has items: Show "Putar Semua Favorit" action bar
+            // If Favorites tab is selected and has items: Show "Play All Favorites" action bar
             if (isFavoritesTab && displayedItems.isNotEmpty()) {
                 Row(
                     modifier = Modifier
@@ -208,7 +208,7 @@ fun FolderMediaGridScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "${displayedItems.size} item favorit",
+                        text = "${displayedItems.size} ${if (displayedItems.size == 1) "favorite" else "favorites"}",
                         color = TextSecondary,
                         fontSize = 13.sp
                     )
@@ -228,7 +228,7 @@ fun FolderMediaGridScreen(
                     ) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Putar Semua Favorit", fontSize = 13.sp)
+                        Text("Play All Favorites", fontSize = 13.sp)
                     }
                 }
             }
@@ -339,17 +339,17 @@ fun FolderMediaGridScreen(
                                 )
                             }
 
-                            // Favorite Heart Badge / Quick Toggle
+                            // Favorite Heart Badge / Quick Toggle (48dp touch target)
                             IconButton(
                                 onClick = { viewModel.toggleFavorite(item.uri) },
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .size(36.dp)
+                                    .size(48.dp)
                             ) {
                                 Icon(
                                     imageVector = if (isFav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                    contentDescription = if (isFav) "Hapus dari Favorit" else "Tambah ke Favorit",
-                                    tint = if (isFav) ErrorRed else Color.White.copy(alpha = 0.8f),
+                                    contentDescription = if (isFav) "Remove from Favorites" else "Add to Favorites",
+                                    tint = if (isFav) HeartRed else Color.White.copy(alpha = 0.8f),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -370,19 +370,19 @@ fun FolderMediaGridScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Belum ada media favorit di folder ini.",
+                            text = "No favorites in this folder yet.",
                             color = Color.White,
                             fontSize = 15.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Ketuk ikon hati pada media untuk menyimpannya sebagai favorit.",
+                            text = "Double-tap any photo or video or tap the heart icon to save favorites.",
                             color = TextSecondary,
                             fontSize = 13.sp
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         OutlinedButton(onClick = { viewModel.selectTab(FolderTab.ALL) }) {
-                            Text("Lihat Semua Media")
+                            Text("View All Media")
                         }
                     }
                 }

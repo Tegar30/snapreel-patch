@@ -78,8 +78,6 @@ class VideoPageTest {
                     showFileName = true,
                     aspectRatioMode = AspectRatioMode.SMART,
                     onTap = {},
-                    onDoubleTapLeft = {},
-                    onDoubleTapRight = {},
                     onMuteToggle = {},
                     onSeekTo = {},
                     onSliderDragStart = {},

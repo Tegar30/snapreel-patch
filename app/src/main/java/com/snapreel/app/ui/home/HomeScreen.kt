@@ -48,6 +48,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val context = LocalContext.current
+    var folderPendingDelete by remember { mutableStateOf<RecentFolder?>(null) }
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -200,8 +201,8 @@ fun HomeScreen(
                             folder = folder,
                             onClick = { onFolderSelected(folder.uri) },
                             onPlayClick = { onPlaySelected(folder.uri, folder.lastIndex, settings.landscapeVideoMode) },
-                            onDelete = { viewModel.removeRecentFolder(folder) },
-                            animationDelay = index * 50
+                            onDelete = { folderPendingDelete = folder },
+                            animationDelay = (index * 40).coerceAtMost(240)
                         )
                     }
                 }
@@ -242,6 +243,38 @@ fun HomeScreen(
         // In-app update dialog (shown only when an update is offered or in progress)
         val updateState by viewModel.updateState.collectAsState()
         com.snapreel.app.ui.common.UpdateDialogHost(state = updateState, coordinator = viewModel.updateCoordinator)
+
+        folderPendingDelete?.let { folder ->
+            AlertDialog(
+                onDismissRequest = { folderPendingDelete = null },
+                containerColor = SurfaceVariant,
+                title = {
+                    Text("Remove from Recent?", color = TextPrimary)
+                },
+                text = {
+                    Text(
+                        text = "Remove \"${folder.displayName}\" from recent folders? Your media files on device will not be deleted.",
+                        color = TextSecondary,
+                        fontSize = 14.sp
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.removeRecentFolder(folder)
+                            folderPendingDelete = null
+                        }
+                    ) {
+                        Text("Remove", color = ErrorRed, fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { folderPendingDelete = null }) {
+                        Text("Cancel", color = Violet400)
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -333,38 +366,45 @@ private fun FolderCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Tap to view",
+                        text = if (folder.lastIndex > 0) "Resume from #${folder.lastIndex + 1} · Tap to view" else "Tap to view",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted
+                        color = TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // Play button
+                // Play button (48dp touch target, 40dp visual circle)
                 IconButton(
                     onClick = onPlayClick,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Violet500.copy(alpha = 0.15f))
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = "Play",
-                        tint = Violet400,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Violet500.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = "Play ${folder.displayName}",
+                            tint = Violet400,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                // Delete button
+                // Delete button (48dp touch target)
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
-                        contentDescription = "Remove",
+                        contentDescription = "Remove ${folder.displayName} from recent",
                         tint = TextDisabled,
                         modifier = Modifier.size(18.dp)
                     )

@@ -27,8 +27,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.SemanticsPropertyReceiver
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,8 +75,6 @@ fun VideoPage(
     showFileName: Boolean,
     aspectRatioMode: AspectRatioMode = AspectRatioMode.SMART,
     onTap: () -> Unit,
-    onDoubleTapLeft: () -> Unit = {},
-    onDoubleTapRight: () -> Unit = {},
     onMuteToggle: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSliderDragStart: () -> Unit,
@@ -185,7 +186,13 @@ fun VideoPage(
             .fillMaxSize()
             .background(Color.Black)
             .testTag(VideoPageTags.ROOT)
-            .semantics { videoFill = shouldZoom }
+            .semantics {
+                videoFill = shouldZoom
+                customActions = listOf(
+                    CustomAccessibilityAction(if (isPlaying) "Pause" else "Play") { currentOnTap(); true },
+                    CustomAccessibilityAction(if (currentIsFavorite) "Remove Favorite" else "Add Favorite") { currentOnFavoriteToggle(); true }
+                )
+            }
             .onSizeChanged { containerSize = it }
             .pointerInput(containerSize) {
                 detectTapGestures(
@@ -529,8 +536,7 @@ fun VideoPage(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp)
-                        .height(24.dp),
+                        .padding(horizontal = 10.dp),
                     colors = SliderDefaults.colors(
                         thumbColor = Violet400,
                         activeTrackColor = Violet500,
@@ -558,19 +564,25 @@ fun VideoPage(
                 IconButton(
                     onClick = onFavoriteToggle,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.45f))
                 ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         contentDescription = if (isFavorite) "Remove Favorite" else "Add Favorite",
-                        tint = if (isFavorite) Color.Red else Color.White,
+                        tint = if (isFavorite) HeartRed else Color.White,
                         modifier = Modifier.size(22.dp)
                     )
                 }
 
                 // 2. Playback Speed Button (0.5x, 1x, 1.25x, 1.5x, 2x)
+                val speedLabel = when (playbackSpeed) {
+                    1.25f -> "1.25x"
+                    1.5f -> "1.5x"
+                    0.5f -> "0.5x"
+                    else -> "${playbackSpeed.toInt()}x"
+                }
                 IconButton(
                     onClick = {
                         val next = when (playbackSpeed) {
@@ -584,12 +596,13 @@ fun VideoPage(
                         player?.setPlaybackSpeed(next)
                     },
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.45f))
+                        .semantics { contentDescription = "Playback speed $speedLabel" }
                 ) {
                     Text(
-                        text = if (playbackSpeed == 1.25f) "1.2x" else if (playbackSpeed == 1.5f) "1.5x" else if (playbackSpeed == 0.5f) "0.5x" else "${playbackSpeed.toInt()}x",
+                        text = speedLabel,
                         color = if (playbackSpeed != 1.0f) Violet400 else Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
@@ -600,7 +613,7 @@ fun VideoPage(
                 IconButton(
                     onClick = { manualZoomOverride = !shouldZoom },
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.45f))
                 ) {
@@ -616,7 +629,7 @@ fun VideoPage(
                 IconButton(
                     onClick = onMuteToggle,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.45f))
                 ) {
