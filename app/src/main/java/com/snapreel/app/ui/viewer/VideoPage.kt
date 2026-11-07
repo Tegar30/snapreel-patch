@@ -164,9 +164,10 @@ fun VideoPage(
         }
     }
 
-    // Update progress bar from this page's player position
-    LaunchedEffect(isCurrentPage, isDraggingSlider, player) {
-        if (isCurrentPage && !isDraggingSlider && player != null) {
+    // Update progress bar from this page's player position only while controls are visible
+    // ponytail: 100ms polling only while showControls == true; switch to frame callback if always-on progress bar added
+    LaunchedEffect(isCurrentPage, showControls, isDraggingSlider, player) {
+        if (isCurrentPage && showControls && !isDraggingSlider && player != null) {
             while (true) {
                 val p = player
                 currentTime.longValue = p.currentPosition

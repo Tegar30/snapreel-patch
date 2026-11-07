@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.OptIn
+import androidx.compose.runtime.Stable
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -13,6 +14,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import com.snapreel.app.data.model.MediaItem
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,7 @@ import javax.inject.Inject
 import androidx.media3.common.MediaItem as Media3Item
 
 /** What one page of a viewer sees: its pooled player (if bound) and that player's per-page state. */
+@Stable
 data class PageState(
     val player: Player?,
     val videoSize: VideoSize?,
@@ -454,6 +457,7 @@ class ReelPlayerPool(
             return ExoPlayer.Builder(context)
                 .setLoadControl(loadControl)
                 .setRenderersFactory(renderersFactory)
+                .setSeekParameters(SeekParameters.CLOSEST_SYNC)
                 .build()
         }
     }

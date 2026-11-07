@@ -1,5 +1,6 @@
 package com.snapreel.app.ui.viewer
 
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.ui.platform.LocalContext
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.bitmapConfig
 import coil3.request.crossfade
 import com.snapreel.app.data.repository.FolderLoadError
 import com.snapreel.app.data.repository.displayMessage
@@ -179,7 +181,9 @@ fun FolderMediaGridScreen(
                     selected = uiState.selectedTab == FolderTab.FAVORITES,
                     onClick = { viewModel.selectTab(FolderTab.FAVORITES) },
                     text = {
-                        val favCount = uiState.mediaItems.count { it.uri.toString() in favorites }
+                        val favCount = remember(uiState.mediaItems, favorites) {
+                            uiState.mediaItems.count { it.uri.toString() in favorites }
+                        }
                         Text(if (favCount > 0) "Favorit ($favCount)" else "Favorit", fontWeight = FontWeight.Medium)
                     },
                     icon = {
@@ -263,7 +267,11 @@ fun FolderMediaGridScreen(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    itemsIndexed(displayedItems) { index, item ->
+                    itemsIndexed(
+                        items = displayedItems,
+                        key = { _, item -> item.uri.toString() },
+                        contentType = { _, item -> if (item.isVideo) "video" else "image" }
+                    ) { index, item ->
                         val isFav = item.uri.toString() in favorites
                         Box(
                             modifier = Modifier
@@ -303,12 +311,17 @@ fun FolderMediaGridScreen(
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
-                                AsyncImage(
-                                    model = coil3.request.ImageRequest.Builder(LocalContext.current)
+                                val context = LocalContext.current
+                                val imageRequest = remember(item.uri) {
+                                    ImageRequest.Builder(context)
                                         .data(item.uri)
                                         .size(300, 300)
+                                        .bitmapConfig(Bitmap.Config.RGB_565)
                                         .crossfade(true)
-                                        .build(),
+                                        .build()
+                                }
+                                AsyncImage(
+                                    model = imageRequest,
                                     contentDescription = item.name,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
