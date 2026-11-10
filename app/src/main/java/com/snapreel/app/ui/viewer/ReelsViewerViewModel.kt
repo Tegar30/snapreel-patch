@@ -128,16 +128,16 @@ class ReelsViewerViewModel @Inject constructor(
 
             allOriginalItems = allItems
             val items = if (favoritesOnly) {
-                allItems.filter { it.uri.toString() in favSet }
+                allItems.filter { it.isVideo && it.uri.toString() in favSet }
             } else {
                 allItems
             }
 
             if (items.isEmpty()) {
-                val error = if (favoritesOnly && allItems.isNotEmpty()) {
-                    FolderLoadError.NoFavorites
-                } else {
-                    FolderLoadError.NoMedia
+                val error = when {
+                    favoritesOnly && allItems.any { it.isVideo } -> FolderLoadError.NoFavorites
+                    favoritesOnly -> FolderLoadError.NoVideos
+                    else -> FolderLoadError.NoMedia
                 }
                 _uiState.update {
                     it.copy(mediaItems = emptyList(), isLoading = false, error = error)
@@ -145,7 +145,7 @@ class ReelsViewerViewModel @Inject constructor(
                 return@launch
             }
 
-            val start = if (fresh) {
+            val start = if (fresh && !favoritesOnly) {
                 val saved = appPreferences.recentFolder(folderUri.toString())
                 MediaIndexMapping.resolveStartIndex(items, saved?.lastItemUri, startIndex)
             } else if (favoritesOnly) {

@@ -43,6 +43,7 @@ interface SnapReelScreens {
     fun Home(
         onFolderSelected: (Uri) -> Unit,
         onPlaySelected: (Uri, Int, Boolean) -> Unit,
+        onPlayFavoritesSelected: (Uri, Boolean) -> Unit,
         onSettingsClick: () -> Unit,
     )
 
@@ -85,8 +86,14 @@ object AppScreens : SnapReelScreens {
     override fun Home(
         onFolderSelected: (Uri) -> Unit,
         onPlaySelected: (Uri, Int, Boolean) -> Unit,
+        onPlayFavoritesSelected: (Uri, Boolean) -> Unit,
         onSettingsClick: () -> Unit,
-    ) = HomeScreen(onFolderSelected = onFolderSelected, onPlaySelected = onPlaySelected, onSettingsClick = onSettingsClick)
+    ) = HomeScreen(
+        onFolderSelected = onFolderSelected,
+        onPlaySelected = onPlaySelected,
+        onPlayFavoritesSelected = onPlayFavoritesSelected,
+        onSettingsClick = onSettingsClick
+    )
 
     @Composable
     override fun Grid(
@@ -202,6 +209,14 @@ fun SnapReelNavGraph(
                         Routes.landscapeViewer(uri.toString(), index, fresh = true)
                     } else {
                         Routes.viewer(uri.toString(), index, fresh = true)
+                    }
+                    navController.navigateFrom(entry, route)
+                },
+                onPlayFavoritesSelected = { uri, isLandscape ->
+                    val route = if (isLandscape) {
+                        Routes.landscapeViewer(uri.toString(), 0, fresh = true, favoritesOnly = true)
+                    } else {
+                        Routes.viewer(uri.toString(), 0, fresh = true, favoritesOnly = true)
                     }
                     navController.navigateFrom(entry, route)
                 },

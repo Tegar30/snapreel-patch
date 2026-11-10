@@ -156,7 +156,12 @@ Every release must be signed with the same release key. Android installs an upda
    ```
    The certificate SHA-256 must match:
    `61ad7d7ee4fe2744f4c4112d35b267cedbfc1909cde96028b4d070cf585b9e49`
-4. **Publish** a GitHub release tagged `vX.Y.Z` with the APK attached. Installed apps pick it up through the in-app updater.
+4. **Configure GitHub Actions secrets** in the repository settings:
+   - `SNAPREEL_KEYSTORE_BASE64`: the base64-encoded release keystore (`base64 -w0 snapreel-release.p12`)
+   - `SNAPREEL_KEYSTORE_PASSWORD`
+   - `SNAPREEL_KEY_ALIAS`
+   - `SNAPREEL_KEY_PASSWORD`
+5. **Publish automatically** by pushing a tag such as `v1.3.1.4`. GitHub Actions runs the tests, builds the signed release APK and attaches it to a GitHub Release. Pushes and pull requests run the tests and a debug build only.
 
 Keep the keystore and its password backed up in two separate places. If the key is lost, no future release can update existing installs.
 

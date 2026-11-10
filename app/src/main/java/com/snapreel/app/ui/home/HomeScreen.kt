@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -42,6 +43,7 @@ import com.snapreel.app.ui.theme.*
 fun HomeScreen(
     onFolderSelected: (Uri) -> Unit, // For grid
     onPlaySelected: (Uri, Int, Boolean) -> Unit, // For quick play
+    onPlayFavoritesSelected: (Uri, Boolean) -> Unit,
     onSettingsClick: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -201,6 +203,9 @@ fun HomeScreen(
                             folder = folder,
                             onClick = { onFolderSelected(folder.uri) },
                             onPlayClick = { onPlaySelected(folder.uri, folder.lastIndex, settings.landscapeVideoMode) },
+                            onPlayFavoritesClick = {
+                                onPlayFavoritesSelected(folder.uri, settings.landscapeVideoMode)
+                            },
                             onDelete = { folderPendingDelete = folder },
                             animationDelay = (index * 40).coerceAtMost(240)
                         )
@@ -303,6 +308,7 @@ private fun FolderCard(
     folder: RecentFolder,
     onClick: () -> Unit,
     onPlayClick: () -> Unit,
+    onPlayFavoritesClick: () -> Unit,
     onDelete: () -> Unit,
     animationDelay: Int
 ) {
@@ -391,6 +397,26 @@ private fun FolderCard(
                             contentDescription = "Play ${folder.displayName}",
                             tint = Violet400,
                             modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                IconButton(
+                    onClick = onPlayFavoritesClick,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(ErrorRed.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Favorite,
+                            contentDescription = "Play favorite videos in ${folder.displayName}",
+                            tint = ErrorRed,
+                            modifier = Modifier.size(19.dp)
                         )
                     }
                 }

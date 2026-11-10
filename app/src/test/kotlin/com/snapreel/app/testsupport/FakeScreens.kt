@@ -23,6 +23,7 @@ class FakeScreens(
     object Tags {
         const val HOME_OPEN = "fake_home_open"
         const val HOME_PLAY = "fake_home_play"
+        const val HOME_PLAY_FAVORITES = "fake_home_play_favorites"
         const val HOME_SETTINGS = "fake_home_settings"
         const val GRID_TILE = "fake_grid_tile"
         const val GRID_BACK = "fake_grid_back"
@@ -41,11 +42,16 @@ class FakeScreens(
     override fun Home(
         onFolderSelected: (Uri) -> Unit,
         onPlaySelected: (Uri, Int, Boolean) -> Unit,
+        onPlayFavoritesSelected: (Uri, Boolean) -> Unit,
         onSettingsClick: () -> Unit,
     ) {
         Column {
             Button(onClick = burstOf { onFolderSelected(folder) }, modifier = Modifier.testTag(Tags.HOME_OPEN)) { Text("open") }
             Button(onClick = burstOf { onPlaySelected(folder, 0, false) }, modifier = Modifier.testTag(Tags.HOME_PLAY)) { Text("play") }
+            Button(
+                onClick = burstOf { onPlayFavoritesSelected(folder, false) },
+                modifier = Modifier.testTag(Tags.HOME_PLAY_FAVORITES)
+            ) { Text("play favorites") }
             Button(onClick = burstOf(onSettingsClick), modifier = Modifier.testTag(Tags.HOME_SETTINGS)) { Text("settings") }
         }
     }
