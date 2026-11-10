@@ -154,8 +154,8 @@ Every release must be signed with the same release key. Android installs an upda
    ./gradlew assembleRelease
    apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
    ```
-   The certificate SHA-256 must match:
-   `59ca546858c48ed522dd5d3b3ee96be7ae157b0113e6b09ccf4777cd6abff09d`
+   After creating a replacement key, record its certificate SHA-256 here and keep the
+   keystore backed up. A new key cannot update installations signed with the lost key.
 4. **Configure GitHub Actions secrets** in the repository settings:
    - `SNAPREEL_KEYSTORE_BASE64`: the base64-encoded release keystore (`base64 -w0 snapreel-release.p12`)
    - `SNAPREEL_KEYSTORE_PASSWORD`
