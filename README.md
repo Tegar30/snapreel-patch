@@ -155,7 +155,7 @@ Every release must be signed with the same release key. Android installs an upda
    apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
    ```
    The certificate SHA-256 must match:
-   `61ad7d7ee4fe2744f4c4112d35b267cedbfc1909cde96028b4d070cf585b9e49`
+   `59ca546858c48ed522dd5d3b3ee96be7ae157b0113e6b09ccf4777cd6abff09d`
 4. **Configure GitHub Actions secrets** in the repository settings:
    - `SNAPREEL_KEYSTORE_BASE64`: the base64-encoded release keystore (`base64 -w0 snapreel-release.p12`)
    - `SNAPREEL_KEYSTORE_PASSWORD`

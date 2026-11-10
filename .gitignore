@@ -11,3 +11,7 @@
 hs_err_pid*
 replay_pid*
 .kotlin
+*.p12
+*.jks
+keystore.properties
+.release-signing.env
